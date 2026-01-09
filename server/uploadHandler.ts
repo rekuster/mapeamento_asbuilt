@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { getDb, salas, apontamentos, uploads } from './db';
 import { processExcelFile } from './excelProcessor';
 
@@ -14,9 +15,16 @@ export async function handleExcelUpload(fileBuffer: Buffer, fileName: string = '
             throw new Error('Database not available');
         }
 
-        // Clear existing data (optional - comment out if you want to keep historical data)
-        await db.delete(apontamentos);
-        await db.delete(salas);
+        // Clear existing data (try/catch for safety in case table is empty or other storage issues)
+        try {
+            await db.delete(apontamentos);
+            await db.delete(salas);
+        } catch (delError) {
+            console.log("Delete failed, likely empty or permissions. Attempting with where clause...");
+            // Fallback for some drivers that require WHERE
+            await db.delete(apontamentos).where(sql`1 = 1`);
+            await db.delete(salas).where(sql`1 = 1`);
+        }
 
         // Insert salas in chunks to avoid parameter limits (Postgres)
         if (salasData.length > 0) {
