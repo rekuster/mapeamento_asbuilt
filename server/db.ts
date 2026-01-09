@@ -171,8 +171,8 @@ export async function getStatsStatus(edificacao?: string) {
     let aQuery = db.select().from(apontamentos);
 
     if (edificacao) {
-        sQuery = sQuery.where(eq(salas.edificacao, edificacao)) as any;
-        aQuery = aQuery.where(eq(apontamentos.edificacao, edificacao)) as any;
+        sQuery = sQuery.where(eq(salas.edificacao, edificacao));
+        aQuery = aQuery.where(eq(apontamentos.edificacao, edificacao));
     }
 
     const allRooms = await sQuery;
@@ -187,11 +187,13 @@ export async function getStatsStatus(edificacao?: string) {
 
     allRooms.forEach((room: any) => {
         const count = issuesPerRoom.get(room.nome) || 0;
+        const status = (room.status || '').trim().toUpperCase(); // FIXED: Added trim()
+
         if (count > 10) {
             stats.Critico++;
-        } else if (room.status?.toUpperCase() === 'VERIFICADA') {
+        } else if (status === 'VERIFICADA') {
             stats.Verificada++;
-        } else if (room.status?.toUpperCase() === 'EM REVISÃO' || room.status?.toUpperCase() === 'REVISAR') {
+        } else if (status === 'EM REVISÃO' || status === 'REVISAR') {
             stats.Revisar++;
         } else {
             stats.Pendente++;
@@ -210,14 +212,17 @@ export async function getTopSalasImpactadas(edificacao?: string) {
     const db = await getDb();
     if (!db) return [];
 
-    let query: any = db.select({
+    let query = db.select({
         sala: apontamentos.sala,
         count: sql<number>`count(*)`,
         edificacao: apontamentos.edificacao
     }).from(apontamentos);
 
-    if (edificacao) query = query.where(eq(apontamentos.edificacao, edificacao));
+    if (edificacao) {
+        query.where(eq(apontamentos.edificacao, edificacao));
+    }
 
+    // Simplificado group by para evitar erros no Postgres com colunas filtradas
     return await query
         .groupBy(apontamentos.sala, apontamentos.edificacao)
         .orderBy(desc(sql`count(*)`))
